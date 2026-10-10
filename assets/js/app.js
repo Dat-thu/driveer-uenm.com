@@ -368,6 +368,7 @@ function openLogin() {
       toast('Đăng nhập thành công');
       render();
       if (next === 'plans') openPlans();
+      else openWelcome();
     } catch (error) {
       toast(error.message, true);
     }
@@ -467,6 +468,7 @@ function downloadApp() {
 }
 
 function openWelcome() {
+  if (!state.user) return;
   const until = Number(localStorage.getItem('dc_welcome_until') || 0);
   if (until > Date.now()) return;
   const modal = openBare(`<div class="welcome-head"><div><h3>Chào mừng bạn!</h3><p>Xem quyền lợi thành viên của bạn</p></div><button class="icon-btn" type="button" data-close aria-label="Đóng">${icon('x')}</button></div>
