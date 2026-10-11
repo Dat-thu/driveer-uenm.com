@@ -23,7 +23,8 @@ const state = {
   qr: { bankName: '', accountNumber: '', accountName: '', amount: 0, transferNote: '' },
   drawer: false,
   prev: 'profile',
-  loading: true,
+  loadingRides: true,
+  loadingMembers: true,
   pendingRegister: null,
 };
 
@@ -84,14 +85,23 @@ const qrImage = (cfg) => {
 };
 
 async function api(path, options = {}) {
-  const response = await fetch(`${API}/api${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
-      ...(options.headers || {}),
-    },
-  });
+  let response;
+  try {
+    response = await fetch(`${API}/api${path}`, {
+      ...options,
+      signal: options.signal || AbortSignal.timeout(12000),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
+        ...(options.headers || {}),
+      },
+    });
+  } catch (error) {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+      throw new Error('Máy chủ phản hồi quá chậm');
+    }
+    throw new Error('Không kết nối được máy chủ');
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.message || 'Không kết nối được máy chủ');
   return data;
@@ -185,9 +195,9 @@ function homeView() {
     </section>
     ${pills()}
     <div class="section-head"><h2>${icon('bell')} Bạn có cuốc xe có thể nhận</h2><button class="linkish" data-action="go" data-view="rides">Xem tất cả ${icon('caret-right')}</button></div>
-    <div class="list compact">${state.loading ? '<div class="empty">Đang tải cuốc xe...</div>' : (shown.length ? shown.map(rideCard).join('') : `<div class="empty">Chưa có cuốc ở ${regionLabel(state.region)}. Bạn thêm cuốc trong trang quản trị.</div>`)}</div>
+    <div class="list compact">${state.loadingRides ? '<div class="empty">Đang tải cuốc xe...</div>' : (shown.length ? shown.map(rideCard).join('') : `<div class="empty">Chưa có cuốc ở ${regionLabel(state.region)}. Bạn thêm cuốc trong trang quản trị.</div>`)}</div>
     ${bookingHead(false)}
-    <div class="list">${state.loading ? '<div class="empty">Đang tải cuốc khách đặt...</div>' : (memberOfRegion().length ? memberOfRegion().slice(0, 3).map((ride) => bookingCard(ride)).join('') : `<div class="empty">Chưa có cuốc khách đặt ở ${regionLabel(state.region)}.</div>`)}</div>
+    <div class="list">${state.loadingMembers ? '<div class="empty">Đang tải cuốc khách đặt...</div>' : (memberOfRegion().length ? memberOfRegion().slice(0, 3).map((ride) => bookingCard(ride)).join('') : `<div class="empty">Chưa có cuốc khách đặt ở ${regionLabel(state.region)}.</div>`)}</div>
   </main>`;
 }
 
@@ -198,9 +208,9 @@ function ridesView() {
     <div class="panel"><h2>Cuốc xe ${regionLabel(state.region)}</h2><p class="muted">Danh sách do ban quản trị đăng. Cuốc mới nhất hiện trước.</p></div>
     <div style="height:12px"></div>
     ${pills()}
-    <div class="list">${list.length ? list.map(rideCard).join('') : `<div class="empty">Chưa có cuốc ở ${regionLabel(state.region)}.</div>`}</div>
+    <div class="list">${state.loadingRides ? '<div class="empty">Đang tải cuốc xe...</div>' : (list.length ? list.map(rideCard).join('') : `<div class="empty">Chưa có cuốc ở ${regionLabel(state.region)}.</div>`)}</div>
     ${bookingHead(true)}
-    <div class="list">${posted.length ? posted.map((ride) => bookingCard(ride)).join('') : `<div class="empty">Chưa có cuốc khách đặt ở ${regionLabel(state.region)}.</div>`}</div>
+    <div class="list">${state.loadingMembers ? '<div class="empty">Đang tải cuốc khách đặt...</div>' : (posted.length ? posted.map((ride) => bookingCard(ride)).join('') : `<div class="empty">Chưa có cuốc khách đặt ở ${regionLabel(state.region)}.</div>`)}</div>
   </main>`;
 }
 
@@ -278,7 +288,7 @@ function bookingsView() {
   return `${header()}<main class="page bookings-page">
     ${bookingHead(true)}
     ${pills()}
-    <div class="list">${list.length ? list.map((ride) => bookingCard(ride)).join('') : `<div class="empty">Chưa có cuốc khách đặt ở ${regionLabel(state.region)}.</div>`}</div>
+    <div class="list">${state.loadingMembers ? '<div class="empty">Đang tải cuốc khách đặt...</div>' : (list.length ? list.map((ride) => bookingCard(ride)).join('') : `<div class="empty">Chưa có cuốc khách đặt ở ${regionLabel(state.region)}.</div>`)}</div>
   </main>`;
 }
 
@@ -788,18 +798,11 @@ async function toggleService() {
 }
 
 async function loadMemberRides() {
-  const data = await api('/member-rides');
+  const jobs = [api('/member-rides')];
+  if (state.token) jobs.push(api('/member-rides/mine').catch(() => ({ rides: [] })));
+  const [data, mine] = await Promise.all(jobs);
   state.memberRides = data.rides || [];
-  if (!state.token) {
-    state.myRides = [];
-    return;
-  }
-  try {
-    const mine = await api('/member-rides/mine');
-    state.myRides = mine.rides || [];
-  } catch {
-    state.myRides = [];
-  }
+  state.myRides = mine ? (mine.rides || []) : [];
 }
 
 async function copyText(value) {
@@ -976,33 +979,41 @@ document.addEventListener('click', (event) => {
 
 async function boot() {
   render();
-  try {
-    const [rides, qr] = await Promise.all([
-      api('/rides'),
-      api('/qr-config'),
-    ]);
-    state.rides = rides.rides || [];
-    state.qr = qr.qrConfig || state.qr;
-    try { await loadMemberRides(); } catch { /* cuốc khách đặt tải riêng */ }
-    if (state.token) {
-      try {
-        const me = await api('/auth/me');
-        state.user = me.user;
-        localStorage.setItem('dc_user', JSON.stringify(me.user));
-      } catch {
-        state.user = null;
-        state.token = '';
-        localStorage.removeItem('dc_user');
-        localStorage.removeItem('dc_token');
-      }
-    }
-  } catch (error) {
-    toast(error.message, true);
-  } finally {
-    state.loading = false;
-    render();
-    openWelcome();
+  const jobs = [
+    api('/rides').then((data) => {
+      state.rides = data.rides || [];
+    }).catch((error) => {
+      toast(error.message, true);
+    }).finally(() => {
+      state.loadingRides = false;
+      render();
+    }),
+    loadMemberRides().catch(() => {
+      state.memberRides = [];
+      state.myRides = [];
+    }).finally(() => {
+      state.loadingMembers = false;
+      render();
+    }),
+    api('/qr-config').then((data) => {
+      state.qr = data.qrConfig || state.qr;
+    }).catch(() => {}),
+  ];
+  if (state.token) {
+    jobs.push(api('/auth/me').then((me) => {
+      state.user = me.user;
+      localStorage.setItem('dc_user', JSON.stringify(me.user));
+      render();
+    }).catch(() => {
+      state.user = null;
+      state.token = '';
+      localStorage.removeItem('dc_user');
+      localStorage.removeItem('dc_token');
+      render();
+    }));
   }
+  await Promise.allSettled(jobs);
+  openWelcome();
 }
 
 boot();
