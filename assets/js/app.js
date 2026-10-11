@@ -6,11 +6,18 @@ const REGIONS = [
   { id: 'south', label: 'Miền Nam', icon: 'tree-palm' },
 ];
 
-const views = ['home', 'rides', 'post', 'messages', 'profile', 'income', 'guide', 'wallet'];
+const views = ['home', 'rides', 'post', 'messages', 'profile', 'income', 'guide', 'wallet', 'bookings', 'myrides'];
+const PROVINCES = {
+  north: ['Hà Nội', 'Hải Phòng', 'Quảng Ninh', 'Bắc Ninh', 'Hải Dương', 'Hưng Yên', 'Hà Nam', 'Nam Định', 'Thái Bình', 'Ninh Bình', 'Vĩnh Phúc', 'Bắc Giang', 'Phú Thọ', 'Thái Nguyên', 'Lạng Sơn', 'Cao Bằng', 'Bắc Kạn', 'Tuyên Quang', 'Hà Giang', 'Lào Cai', 'Yên Bái', 'Điện Biên', 'Lai Châu', 'Sơn La', 'Hòa Bình'],
+  central: ['Thanh Hóa', 'Nghệ An', 'Hà Tĩnh', 'Quảng Bình', 'Quảng Trị', 'Thừa Thiên Huế', 'Đà Nẵng', 'Quảng Nam', 'Quảng Ngãi', 'Bình Định', 'Phú Yên', 'Khánh Hòa', 'Ninh Thuận', 'Bình Thuận', 'Kon Tum', 'Gia Lai', 'Đắk Lắk', 'Đắk Nông', 'Lâm Đồng'],
+  south: ['TP. Hồ Chí Minh', 'Bình Dương', 'Bình Phước', 'Đồng Nai', 'Tây Ninh', 'Bà Rịa - Vũng Tàu', 'Long An', 'Tiền Giang', 'Bến Tre', 'Trà Vinh', 'Vĩnh Long', 'Đồng Tháp', 'An Giang', 'Kiên Giang', 'Cần Thơ', 'Hậu Giang', 'Sóc Trăng', 'Bạc Liêu', 'Cà Mau'],
+};
 const state = {
   view: views.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home',
   region: 'north',
   rides: [],
+  memberRides: [],
+  myRides: [],
   user: JSON.parse(localStorage.getItem('dc_user') || 'null'),
   token: localStorage.getItem('dc_token') || '',
   qr: { bankName: '', accountNumber: '', accountName: '', amount: 0, transferNote: '' },
@@ -53,6 +60,18 @@ const formatToday = () => {
   }).format(new Date());
   return `${day.charAt(0).toUpperCase()}${day.slice(1)}`;
 };
+const hidePhone = (phone) => {
+  const raw = String(phone || '');
+  if (raw.includes('*')) return raw;
+  const value = digits(raw);
+  if (value.length <= 5) return `${value.slice(0, 2)}${'*'.repeat(Math.max(value.length - 2, 0))}`;
+  return `${value.slice(0, 5)}${'*'.repeat(value.length - 5)}`;
+};
+const shownPhone = (ride) => (state.user ? String(ride.phone || '') : hidePhone(ride.phone));
+const provinceOptions = () => {
+  const groups = [['Miền Bắc', PROVINCES.north], ['Miền Trung', PROVINCES.central], ['Miền Nam', PROVINCES.south]];
+  return `<option value="">Chọn tỉnh/thành</option>${groups.map(([label, items]) => `<optgroup label="${label}">${items.map((name) => `<option value="${esc(name)}">${esc(name)}</option>`).join('')}</optgroup>`).join('')}`;
+};
 const mapsEmbed = (start, end) => `https://maps.google.com/maps?saddr=${encodeURIComponent(`${start}, Việt Nam`)}&daddr=${encodeURIComponent(`${end}, Việt Nam`)}&output=embed`;
 const mapsLink = (start, end) => `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(start)}&destination=${encodeURIComponent(end)}`;
 const qrImage = (cfg) => {
@@ -94,7 +113,7 @@ function ridesOfRegion() {
 }
 
 function rideCard(ride) {
-  return `<article class="ride">
+  return `<article class="ride${ride.status === 'taken' ? ' taken' : ''}">
     <div class="ride-top"><span class="ride-time">${icon('calendar-blank')} ${esc(formatToday())}</span>${ride.hot ? `<span class="hot">${icon('lightning')} Cuốc hot</span>` : ''}</div>
     <div class="ride-main">
       <div>
@@ -166,27 +185,115 @@ function homeView() {
     </section>
     ${pills()}
     <div class="section-head"><h2>${icon('bell')} Bạn có cuốc xe có thể nhận</h2><button class="linkish" data-action="go" data-view="rides">Xem tất cả ${icon('caret-right')}</button></div>
-    <div class="list">${state.loading ? '<div class="empty">Đang tải cuốc xe...</div>' : (shown.length ? shown.map(rideCard).join('') : `<div class="empty">Chưa có cuốc ở ${regionLabel(state.region)}. Bạn thêm cuốc trong trang quản trị.</div>`)}</div>
+    <div class="list compact">${state.loading ? '<div class="empty">Đang tải cuốc xe...</div>' : (shown.length ? shown.map(rideCard).join('') : `<div class="empty">Chưa có cuốc ở ${regionLabel(state.region)}. Bạn thêm cuốc trong trang quản trị.</div>`)}</div>
+    ${bookingHead(false)}
+    <div class="list">${state.loading ? '<div class="empty">Đang tải cuốc khách đặt...</div>' : (memberOfRegion().length ? memberOfRegion().slice(0, 3).map((ride) => bookingCard(ride)).join('') : `<div class="empty">Chưa có cuốc khách đặt ở ${regionLabel(state.region)}.</div>`)}</div>
   </main>`;
 }
 
 function ridesView() {
   const list = ridesOfRegion();
+  const posted = memberOfRegion();
   return `${header()}<main class="page">
     <div class="panel"><h2>Cuốc xe ${regionLabel(state.region)}</h2><p class="muted">Danh sách do ban quản trị đăng. Cuốc mới nhất hiện trước.</p></div>
     <div style="height:12px"></div>
     ${pills()}
-    <div class="list" style="padding-left:0;padding-right:0">${list.length ? list.map(rideCard).join('') : `<div class="empty">Chưa có cuốc ở ${regionLabel(state.region)}.</div>`}</div>
+    <div class="list">${list.length ? list.map(rideCard).join('') : `<div class="empty">Chưa có cuốc ở ${regionLabel(state.region)}.</div>`}</div>
+    ${bookingHead(true)}
+    <div class="list">${posted.length ? posted.map((ride) => bookingCard(ride)).join('') : `<div class="empty">Chưa có cuốc khách đặt ở ${regionLabel(state.region)}.</div>`}</div>
   </main>`;
 }
 
+function memberOfRegion() {
+  return state.memberRides.filter((ride) => ride.region === state.region);
+}
+
+function bookingHead(onPage) {
+  const region = REGIONS.find((item) => item.id === state.region) || REGIONS[0];
+  return `<div class="section-head booking-head">
+    <h2 class="booking-title">${icon('car', 'fill')}<span>Cuốc xe khách đặt <em class="region-chip">(${icon(region.icon)} ${region.label})</em></span></h2>
+    ${onPage ? '' : `<button class="linkish" data-action="go" data-view="bookings">Xem tất cả ${icon('caret-right')}</button>`}
+  </div>`;
+}
+
+function bookingCard(ride, mine = false) {
+  const phone = mine ? String(ride.phone || '') : shownPhone(ride);
+  const hidden = !mine && (!state.user || phone.includes('*'));
+  const fresh = Date.now() - new Date(ride.createdAt).getTime() < 24 * 60 * 60 * 1000;
+  return `<article class="booking">
+    <div class="booking-top">
+      <div class="booking-who">${fresh ? `<span class="fresh">${icon('lightning', 'fill')} Mới</span>` : ''}<b>${esc(ride.driverName)}</b></div>
+      <span class="ago">${icon('clock')} ${mine ? `${esc(regionLabel(ride.region))} · ` : ''}Vừa xong</span>
+    </div>
+    <div class="booking-phone"><span>${icon('phone', 'fill')} ${esc(phone)}</span><button type="button" data-action="copy-phone" data-phone="${esc(phone)}" data-hidden="${hidden ? '1' : '0'}" aria-label="Sao chép số điện thoại">${icon('copy')}</button></div>
+    <div class="booking-route">
+      <div class="track">
+        <div class="leg"><span class="dot go"></span><span><b>${esc(ride.startPoint)}</b><small>Điểm đi</small></span></div>
+        <div class="leg"><span class="dot end"></span><span><b>${esc(ride.endPoint)}</b><small>Điểm đến</small></span></div>
+      </div>
+      <div class="fare"><small>${icon('money', 'fill')} Giá chuyến</small><strong>${money(ride.price)}</strong></div>
+    </div>
+    ${ride.note ? `<div class="booking-note">${icon('note')}<span>Ghi chú: ${esc(ride.note)}</span></div>` : ''}
+    ${mine
+      ? `<button class="drop" type="button" data-action="ask-delete" data-id="${esc(ride.id)}">${icon('trash')} Xóa cuốc</button>`
+      : `<button class="call-now" type="button" data-action="call-member" data-id="${esc(ride.id)}" data-phone="${esc(phone)}" data-hidden="${hidden ? '1' : '0'}">${icon('phone', 'fill')} Gọi tài xế ngay ${icon('caret-right')}</button>`}
+  </article>`;
+}
+
+function memberTabs() {
+  const tab = (view, label) => `<button class="${state.view === view ? 'on' : ''}" type="button" data-action="go" data-view="${view}">${label}</button>`;
+  return `<div class="member-tabs">${tab('post', 'Đăng chuyến')}${tab('myrides', 'Cuốc xe của tôi')}</div>`;
+}
+
 function postView() {
-  return `${header()}<main class="page"><section class="panel">
-    <div class="mail">${icon('plus')}</div>
-    <h2>Đăng chuyến</h2>
-    <p class="muted">Cuốc xe được ban quản trị thêm trong trang admin, để thông tin tuyến và giá luôn thống nhất. Bạn xem cuốc đang mở và gọi tài xế khi đã được duyệt thành viên.</p>
-    <button class="primary" data-action="go" data-view="rides">Xem cuốc xe</button>
+  if (!state.user) {
+    return `${header()}<main class="page">${memberTabs()}<section class="panel">
+      <div class="mail">${icon('plus')}</div>
+      <h2>Đăng ký chở cuốc xe</h2>
+      <p class="muted">Đăng nhập tài khoản đã được duyệt để tự đăng cuốc. Bạn đăng bao nhiêu lần cũng được.</p>
+      <button class="primary" data-action="login">Đăng nhập</button>
+    </section></main>`;
+  }
+  return `${header()}<main class="page">${memberTabs()}<section class="trip-card">
+    <div class="trip-head"><h2>Đăng ký chở cuốc xe</h2></div>
+    <form class="trip-body" id="trip-form">
+      <label class="field">Họ và tên<input name="name" value="${esc(state.user.name)}" readonly></label>
+      <label class="field">Số điện thoại (SĐT tài khoản đăng ký)<input name="phone" value="${esc(state.user.phone)}" readonly></label>
+      <p class="verified">${icon('check-circle', 'fill')} Số điện thoại chính thức đã đăng ký</p>
+      <label class="field">Miền đăng ký<select name="region">${REGIONS.map((item) => `<option value="${item.id}"${item.id === state.region ? ' selected' : ''}>${item.label}</option>`).join('')}</select></label>
+      <div class="field-row">
+        <label class="field">Điểm xuất phát<select name="startPoint" required>${provinceOptions()}</select></label>
+        <label class="field">Điểm đến<select name="endPoint" required>${provinceOptions()}</select></label>
+      </div>
+      <label class="field">Giá dự kiến (VND)<input name="price" inputmode="numeric" placeholder="VD: 800000" required></label>
+      <label class="field">Ghi chú<textarea name="note" rows="3" placeholder="Giờ giấc, loại xe..."></textarea></label>
+      <button class="primary" type="submit">Đăng cuốc xe</button>
+      <p class="trip-hint">Không giới hạn số lần đăng.</p>
+    </form>
   </section></main>`;
+}
+
+function bookingsView() {
+  const list = memberOfRegion();
+  return `${header()}<main class="page bookings-page">
+    ${bookingHead(true)}
+    ${pills()}
+    <div class="list">${list.length ? list.map((ride) => bookingCard(ride)).join('') : `<div class="empty">Chưa có cuốc khách đặt ở ${regionLabel(state.region)}.</div>`}</div>
+  </main>`;
+}
+
+function myridesView() {
+  if (!state.user) {
+    return `${header()}<main class="page">${memberTabs()}<section class="panel">
+      <h2>Cuốc xe của tôi</h2>
+      <p class="muted">Đăng nhập để xem và xóa các cuốc bạn đã đăng.</p>
+      <button class="primary" data-action="login">Đăng nhập</button>
+    </section></main>`;
+  }
+  return `${header()}<main class="page">${memberTabs()}
+    <section class="panel mine-intro"><h2>Cuốc xe của tôi</h2><p class="muted">Danh sách cuốc bạn đã đăng. Có thể xóa bất cứ lúc nào, không giới hạn số lần đăng.</p></section>
+    <div class="list mine">${state.myRides.length ? state.myRides.map((ride) => bookingCard(ride, true)).join('') : '<div class="empty">Bạn chưa đăng cuốc nào.</div>'}</div>
+  </main>`;
 }
 
 function messagesView() {
@@ -214,6 +321,7 @@ function profileView() {
     <div class="menu-list">
       <button class="menu-row" data-action="go" data-view="wallet">${icon('wallet')} Rút tiền <span>${icon('caret-right')}</span></button>
       <button class="menu-row" data-action="go" data-view="income">${icon('chart-line')} Thu nhập tài xế <span>${icon('caret-right')}</span></button>
+      <button class="menu-row" data-action="go" data-view="myrides">${icon('car')} Cuốc xe của tôi <span>${icon('caret-right')}</span></button>
       <button class="menu-row" data-action="go" data-view="guide">${icon('device-mobile')} Hướng dẫn tải app <span>${icon('caret-right')}</span></button>
       <button class="menu-row danger" data-action="logout">${icon('sign-out')} Đăng xuất tài khoản <span>${icon('caret-right')}</span></button>
     </div>
@@ -316,6 +424,7 @@ function drawer() {
       <button class="menu-row" data-action="go" data-view="home">${icon('squares-four')} Dashboard tài xế <span>${icon('caret-right')}</span></button>
       <button class="menu-row" data-action="go" data-view="wallet">${icon('wallet')} Rút tiền <span>${icon('caret-right')}</span></button>
       <button class="menu-row" data-action="go" data-view="income">${icon('chart-line')} Thu nhập tài xế <span>${icon('caret-right')}</span></button>
+      <button class="menu-row" data-action="go" data-view="myrides">${icon('car')} Cuốc xe của tôi <span>${icon('caret-right')}</span></button>
       <button class="menu-row" data-action="go" data-view="guide">${icon('device-mobile')} Hướng dẫn tải app <span>${icon('caret-right')}</span></button>
     </nav>
     <div class="grow"><button class="menu-row danger" data-action="logout">${icon('sign-out')} Đăng xuất</button></div>` : `
@@ -329,7 +438,7 @@ function drawer() {
 }
 
 function render() {
-  const views = { home: homeView, rides: ridesView, post: postView, messages: messagesView, profile: profileView, income: incomeView, guide: guideView, wallet: walletView };
+  const views = { home: homeView, rides: ridesView, post: postView, messages: messagesView, profile: profileView, income: incomeView, guide: guideView, wallet: walletView, bookings: bookingsView, myrides: myridesView };
   const view = views[state.view] || homeView;
   app.innerHTML = `${view()}${tabbar()}${drawer()}`;
 }
@@ -366,6 +475,7 @@ function openLogin() {
       state.afterLogin = '';
       modal.remove();
       toast('Đăng nhập thành công');
+      try { await loadMemberRides(); } catch { /* giữ danh sách cũ */ }
       render();
       if (next === 'plans') openPlans();
       else openWelcome();
@@ -378,7 +488,7 @@ function openLogin() {
 function openRegister() {
   state.drawer = false;
   render();
-  const modal = openModal('Đăng ký thành viên', `<form id="register-form">${field('Họ và tên', 'name', 'text', 'Nguyễn Văn A')}${field('Số điện thoại', 'phone', 'tel', '09xxxxxxxx')}${field('Loại xe', 'carType', 'text', 'Toyota Innova')}${field('Đời xe', 'carYear', 'text', '2022')}${field('Mật khẩu', 'password', 'password')}${field('Nhập lại mật khẩu', 'confirm', 'password')}<button class="primary" type="submit">Tiếp tục thanh toán</button></form>`);
+  const modal = openModal('Đăng ký thành viên', `<form id="register-form">${field('Họ và tên', 'name', 'text', 'Nguyễn Văn A')}${field('Số điện thoại', 'phone', 'tel', '09xxxxxxxx')}${field('Loại xe', 'carType', 'text', 'Toyota Innova')}${field('Đời xe', 'carYear', 'text', '2022')}${field('Mật khẩu', 'password', 'password')}${field('Nhập lại mật khẩu', 'confirm', 'password')}<button class="primary" type="submit">Xác nhận</button></form>`);
   modal.querySelector('#register-form').onsubmit = (event) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.target).entries());
@@ -427,6 +537,23 @@ function openTaken() {
   modal.querySelector('.modal-card')?.classList.replace('sheet', 'dialog');
 }
 
+function openMemberCall(ride) {
+  const phone = digits(ride.phone);
+  openBare(`<div class="pay-head"><button class="icon-btn" type="button" data-close aria-label="Đóng">${icon('x')}</button><h3>Gọi tài xế</h3></div>
+    <div class="contact-body">
+      <div class="contact-top">
+        <div class="ride-driver"><span class="driver-ico">${icon('steering-wheel', 'fill')}</span><span>${esc(ride.driverName)}</span></div>
+        <div class="ride-price"><strong>${money(ride.price)}</strong><span>Giá chuyến</span></div>
+      </div>
+      <div class="track">
+        <div class="leg"><span class="dot go"></span><span><b>${esc(ride.startPoint)}</b><small>Điểm đi</small></span></div>
+        <div class="leg"><span class="dot end"></span><span><b>${esc(ride.endPoint)}</b><small>Điểm đến</small></span></div>
+      </div>
+      <div class="contact-phone"><span class="driver-ico phone">${icon('phone', 'fill')}</span><span class="stop-text"><small>Số điện thoại</small><b>${esc(phone)}</b></span></div>
+      <a class="call" href="tel:${esc(phone)}">${icon('phone')} Gọi ${esc(phone)}</a>
+    </div>`);
+}
+
 function openContact(ride) {
   if (!state.user) {
     toast('Đăng nhập tài khoản đã duyệt để xem số điện thoại');
@@ -452,10 +579,6 @@ const APP_PLANS = [
   { id: 'year', name: '1 năm', hint: 'Tiết kiệm nhất cho lâu dài', title: 'Gói 1 Năm', detail: 'Dùng 12 tháng', price: 400000, badge: 'Phổ biến', mark: 'star' },
   { id: 'life', name: 'Dùng vĩnh viễn', hint: 'Một lần – dùng mãi mãi', title: 'Gói Vĩnh Viễn', detail: 'Dùng trọn đời mãi mãi', price: 1000000, badge: 'Tốt nhất', mark: 'crown' },
 ];
-
-function appNote(phone) {
-  return `Tai App ${digits(phone)}`;
-}
 
 function downloadApp() {
   if (!state.user) {
@@ -558,7 +681,6 @@ function openPlans() {
 
 function openAppPay(planId) {
   let current = APP_PLANS.find((plan) => plan.id === planId) || APP_PLANS[1];
-  const note = appNote(state.user.phone);
   const bank = state.qr || {};
   const ready = bank.bankName && bank.accountNumber;
   const hello = state.user.status === 'approved'
@@ -569,7 +691,7 @@ function openAppPay(planId) {
     <div class="pay-picks">${APP_PLANS.map((plan) => `<button type="button" class="pick${plan.id === current.id ? ' on' : ''}" data-pay="${plan.id}"><em>${icon(plan.mark, 'fill')} ${plan.badge}</em><b>${plan.title}</b><strong>${money(plan.price)}</strong><small>${plan.detail}</small></button>`).join('')}</div>
     <div class="qr-box" id="pay-qr-box">${ready ? `<img id="pay-qr" alt="QR thanh toán" src="">` : '<p class="muted">Chưa cấu hình tài khoản nhận tiền trong trang quản trị.</p>'}</div>
     ${window.APP_CONFIG.APP_DOWNLOAD_URL ? `<button class="apk" type="button" id="apk">${icon('device-mobile', 'fill')} Android APK</button>` : ''}
-    <div class="pay-sum"><span id="pay-caption"></span><b id="pay-amount"></b><span>Nội dung CK: <strong id="pay-note">${esc(note)}</strong></span></div>
+    <div class="pay-sum"><span id="pay-caption"></span><b id="pay-amount"></b></div>
     <div class="plan-actions"><button class="primary" type="button" id="paid">Tôi đã chuyển khoản</button></div>
     <p class="pay-foot">${icon('shield-check', 'fill')} Không dùng app vẫn rút được tiền ký quỹ</p>`);
   modal.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', () => modal.remove()));
@@ -584,7 +706,7 @@ function openAppPay(planId) {
         accountNumber: bank.accountNumber,
         accountName: bank.accountName,
         amount: current.price,
-        transferNote: note,
+        transferNote: '',
       });
     }
   };
@@ -596,9 +718,14 @@ function openAppPay(planId) {
   });
   const apk = modal.querySelector('#apk');
   if (apk) apk.onclick = () => window.open(window.APP_CONFIG.APP_DOWNLOAD_URL, '_blank', 'noopener');
-  modal.querySelector('#paid').onclick = () => {
+  modal.querySelector('#paid').onclick = async () => {
+    const button = modal.querySelector('#paid');
+    if (button.disabled) return;
+    button.disabled = true;
+    button.innerHTML = '<span class="spin"></span> Đang xử lý';
+    await new Promise((resolve) => setTimeout(resolve, 3000));
     modal.remove();
-    toast('Đã ghi nhận. Admin xác nhận sau khi nhận được tiền.');
+    openAppPoster();
   };
   paint();
 }
@@ -660,6 +787,127 @@ async function toggleService() {
   }
 }
 
+async function loadMemberRides() {
+  const data = await api('/member-rides');
+  state.memberRides = data.rides || [];
+  if (!state.token) {
+    state.myRides = [];
+    return;
+  }
+  try {
+    const mine = await api('/member-rides/mine');
+    state.myRides = mine.rides || [];
+  } catch {
+    state.myRides = [];
+  }
+}
+
+async function copyText(value) {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    const input = document.createElement('textarea');
+    input.value = value;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    input.remove();
+  }
+  toast('Đã sao chép số điện thoại');
+}
+
+async function logout() {
+  state.user = null;
+  state.token = '';
+  state.drawer = false;
+  state.view = 'home';
+  localStorage.removeItem('dc_user');
+  localStorage.removeItem('dc_token');
+  try { await loadMemberRides(); } catch { state.memberRides = []; state.myRides = []; }
+  toast('Đã đăng xuất');
+  render();
+}
+
+function openNeedAccount() {
+  const modal = openBare(`<div class="warn">
+    <svg class="warn-sign" viewBox="0 0 64 56" aria-hidden="true"><path d="M32 4 62 54H2L32 4z" fill="#ffd400" stroke="#111" stroke-width="3" stroke-linejoin="round"/><rect x="29.5" y="20" width="5" height="16" rx="1.2" fill="#111"/><circle cx="32" cy="44" r="2.6" fill="#111"/></svg>
+    <h3>Bạn cần đăng ký trước khi nhận cuốc</h3>
+    <p>Vui lòng đăng ký hoặc đăng nhập để có thể nhận cuốc xe.</p>
+    <button class="warn-ok" type="button" data-close>Đã hiểu</button>
+  </div>`);
+  modal.querySelector('.modal-card')?.classList.replace('sheet', 'dialog');
+}
+
+function openAppPoster() {
+  const modal = openBare(`<button class="poster-close" type="button" data-close aria-label="Đóng">${icon('x')}</button><img src="assets/img/download-app.jpg" alt="Tải DRIVER APP">`);
+  const card = modal.querySelector('.modal-card');
+  card?.classList.remove('sheet');
+  card?.classList.add('poster');
+}
+
+function askDeleteRide(ride) {
+  const modal = openBare(`<div class="warn">
+    <span class="taken-ico">${icon('trash', 'fill')}</span>
+    <h3>Xóa cuốc xe này?</h3>
+    <p>${esc(ride.startPoint)} → ${esc(ride.endPoint)}</p>
+    <div class="row-actions"><button class="ghost" type="button" data-close>Hủy</button><button class="warn-ok" type="button" id="confirm-delete">Xóa</button></div>
+  </div>`);
+  modal.querySelector('.modal-card')?.classList.replace('sheet', 'dialog');
+  modal.querySelector('#confirm-delete').onclick = async () => {
+    const button = modal.querySelector('#confirm-delete');
+    button.disabled = true;
+    try {
+      await api(`/member-rides/${ride.id}`, { method: 'DELETE' });
+      state.myRides = state.myRides.filter((item) => item.id !== ride.id);
+      state.memberRides = state.memberRides.filter((item) => item.id !== ride.id);
+      modal.remove();
+      toast('Đã xóa cuốc xe');
+      render();
+    } catch (error) {
+      button.disabled = false;
+      toast(error.message, true);
+    }
+  };
+}
+
+async function submitTrip(form) {
+  if (!state.user) return openLogin();
+  const data = Object.fromEntries(new FormData(form).entries());
+  const price = Number(digits(data.price));
+  if (!data.startPoint || !data.endPoint) return toast('Chọn điểm đi và điểm đến', true);
+  if (data.startPoint === data.endPoint) return toast('Điểm đi và điểm đến phải khác nhau', true);
+  if (!price) return toast('Nhập giá dự kiến', true);
+  const button = form.querySelector('button[type="submit"]');
+  button.disabled = true;
+  try {
+    await api('/member-rides', {
+      method: 'POST',
+      body: JSON.stringify({
+        region: data.region,
+        startPoint: data.startPoint,
+        endPoint: data.endPoint,
+        price,
+        note: data.note,
+      }),
+    });
+    await loadMemberRides();
+    toast('Đã đăng cuốc xe');
+    state.prev = state.view;
+    state.view = 'myrides';
+    history.replaceState(null, '', '#myrides');
+    render();
+  } catch (error) {
+    button.disabled = false;
+    toast(error.message, true);
+  }
+}
+
+document.addEventListener('submit', (event) => {
+  if (event.target?.id !== 'trip-form') return;
+  event.preventDefault();
+  submitTrip(event.target);
+});
+
 document.addEventListener('click', (event) => {
   const target = event.target.closest('[data-action]');
   if (!target || !app.contains(target)) return;
@@ -684,21 +932,32 @@ document.addEventListener('click', (event) => {
   if (action === 'login') openLogin();
   if (action === 'register') openRegister();
   if (action === 'download') downloadApp();
-  if (action === 'logout') {
-    state.user = null;
-    state.token = '';
-    state.drawer = false;
-    state.view = 'home';
-    localStorage.removeItem('dc_user');
-    localStorage.removeItem('dc_token');
-    toast('Đã đăng xuất');
-    render();
-  }
+  if (action === 'logout') logout();
   if (action === 'withdraw') openWithdraw();
   if (action === 'toggle-service') toggleService();
+  if (action === 'copy-phone') {
+    if (target.dataset.hidden === '1') {
+      toast('Đăng nhập để xem số đầy đủ', true);
+      openLogin();
+      return;
+    }
+    copyText(target.dataset.phone);
+  }
+  if (action === 'call-member') {
+    if (target.dataset.hidden === '1' || !state.user) {
+      openNeedAccount();
+      return;
+    }
+    const ride = state.memberRides.find((item) => item.id === target.dataset.id);
+    openMemberCall(ride || { phone: target.dataset.phone, driverName: '', startPoint: '', endPoint: '', price: 0 });
+  }
+  if (action === 'ask-delete') {
+    const ride = state.myRides.find((item) => item.id === target.dataset.id);
+    if (ride) askDeleteRide(ride);
+  }
   if (action === 'accept') {
     if (!state.user) {
-      openLogin();
+      openNeedAccount();
       return;
     }
     if (state.user.acceptingRides === false) {
@@ -724,6 +983,7 @@ async function boot() {
     ]);
     state.rides = rides.rides || [];
     state.qr = qr.qrConfig || state.qr;
+    try { await loadMemberRides(); } catch { /* cuốc khách đặt tải riêng */ }
     if (state.token) {
       try {
         const me = await api('/auth/me');

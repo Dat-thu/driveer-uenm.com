@@ -21,6 +21,9 @@ const state = {
   rides: [],
   rideRegion: 'all',
   ridePage: 1,
+  memberRides: [],
+  memberRideRegion: 'all',
+  memberRidePage: 1,
   editing: null,
   settings: { qrConfig: {}, telegramConfig: {} },
   loginError: '',
@@ -110,6 +113,7 @@ function side() {
     ${item('dashboard', 'Tổng quan', 'squares-four')}
     ${item('members', 'Thành viên', 'users')}
     ${item('rides', 'Cuốc xe', 'car')}
+    ${item('memberRides', 'Cuốc xe (thành viên)', 'steering-wheel')}
     ${item('settings', 'Cấu hình', 'gear')}
     <button class="nav-btn logout" id="logout">${icon('sign-out')}<span>Đăng xuất</span></button>
   </aside>`;
@@ -247,6 +251,40 @@ function ridesView() {
     </section>`;
 }
 
+function memberRidesView() {
+  const pageSize = 10;
+  const pages = Math.max(1, Math.ceil(state.memberRides.length / pageSize));
+  if (state.memberRidePage > pages) state.memberRidePage = pages;
+  if (state.memberRidePage < 1) state.memberRidePage = 1;
+  const start = (state.memberRidePage - 1) * pageSize;
+  const visible = state.memberRides.slice(start, start + pageSize);
+  const rows = visible.length ? visible.map((ride, index) => `<tr>
+      <td class="num">${start + index + 1}</td>
+      <td>${esc(ride.driverName)}</td>
+      <td>${esc(ride.phone)}</td>
+      <td>${esc(ride.startPoint)}</td>
+      <td>${esc(ride.endPoint)}</td>
+      <td>${esc(regionLabel(ride.region))}</td>
+      <td>${money(ride.price)}</td>
+      <td class="note-cell" title="${esc(ride.note || '')}">${esc(ride.note || '')}</td>
+      <td class="dim">${esc(formatTime(ride.createdAt))}</td>
+      <td class="ops"><button class="icon-act danger" data-delete-member-ride="${esc(ride.id)}" aria-label="Xóa cuốc">${icon('trash')}</button></td>
+    </tr>`).join('') : '<tr><td colspan="10">Chưa có cuốc xe thành viên.</td></tr>';
+  return `<div class="topbar"><div><h1>Cuốc xe (thành viên)</h1><p class="muted">Cuốc do thành viên đã duyệt tự đăng. Có thể xóa cuốc không phù hợp.</p></div></div>
+    <section class="card ride-board">
+      <div class="filters">${REGIONS.map((item) => `<button class="${state.memberRideRegion === item.id ? 'primary' : 'ghost'}" data-member-region="${item.id}">${item.label}</button>`).join('')}</div>
+      <div class="table-wrap" style="margin-top:12px"><table class="member-rides">
+        <thead><tr><th>#</th><th>Tài xế</th><th>Số điện thoại</th><th>Điểm đi</th><th>Điểm đến</th><th>Miền</th><th>Giá</th><th>Ghi chú</th><th>Thời gian</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <div class="pager">
+        <button class="ghost" id="member-ride-prev" ${state.memberRidePage <= 1 ? 'disabled' : ''}>Trước</button>
+        <span>Trang ${state.memberRidePage}/${pages} · ${state.memberRides.length} cuốc</span>
+        <button class="ghost" id="member-ride-next" ${state.memberRidePage >= pages ? 'disabled' : ''}>Sau</button>
+      </div>
+    </section>`;
+}
+
 function settingsView() {
   const qr = state.settings.qrConfig || {};
   const tg = state.settings.telegramConfig || {};
@@ -297,7 +335,7 @@ function render() {
     };
     return;
   }
-  const views = { dashboard: dashboardView, members: membersView, rides: ridesView, settings: settingsView };
+  const views = { dashboard: dashboardView, members: membersView, rides: ridesView, memberRides: memberRidesView, settings: settingsView };
   root.innerHTML = `<div class="shell">${side()}<main class="main">${(views[state.tab] || dashboardView)()}</main></div>`;
   bind();
 }
@@ -317,6 +355,7 @@ function bind() {
   };
   if (state.tab === 'members') bindMembers();
   if (state.tab === 'rides') bindRides();
+  if (state.tab === 'memberRides') bindMemberRides();
   if (state.tab === 'settings') bindSettings();
 }
 
@@ -442,6 +481,27 @@ function bindRides() {
   });
 }
 
+function bindMemberRides() {
+  root.querySelectorAll('[data-member-region]').forEach((button) => {
+    button.onclick = async () => {
+      state.memberRideRegion = button.dataset.memberRegion;
+      state.memberRidePage = 1;
+      await loadMemberRides();
+      render();
+    };
+  });
+  root.querySelector('#member-ride-prev').onclick = () => { state.memberRidePage -= 1; render(); };
+  root.querySelector('#member-ride-next').onclick = () => { state.memberRidePage += 1; render(); };
+  root.querySelectorAll('[data-delete-member-ride]').forEach((button) => {
+    button.onclick = async () => {
+      if (!confirm('Xóa cuốc xe thành viên này?')) return;
+      await api(`/admin/member-rides/${button.dataset.deleteMemberRide}`, { method: 'DELETE' });
+      await loadMemberRides();
+      render();
+    };
+  });
+}
+
 function bindSettings() {
   root.querySelectorAll('[data-config]').forEach((button) => {
     button.onclick = () => { state.configTab = button.dataset.config; render(); };
@@ -490,10 +550,15 @@ async function loadRides() {
   const data = await api(`/admin/rides?region=${state.rideRegion}`);
   state.rides = data.rides;
 }
+async function loadMemberRides() {
+  const data = await api(`/admin/member-rides?region=${state.memberRideRegion}`);
+  state.memberRides = data.rides || [];
+}
 async function loadTab() {
   if (state.tab === 'dashboard') state.dash = await api('/admin/dashboard');
   if (state.tab === 'members') await loadUsers();
   if (state.tab === 'rides') await loadRides();
+  if (state.tab === 'memberRides') await loadMemberRides();
   if (state.tab === 'settings') state.settings = await api('/admin/settings');
   render();
 }

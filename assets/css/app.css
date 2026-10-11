@@ -300,6 +300,17 @@ article.stat { cursor: default; }
   border-radius: 20px;
   padding: 12px;
   box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.ride.taken::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: #e11d2e;
 }
 .ride-top, .ride-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ride-top { color: var(--muted); font-size: 12px; font-weight: 700; }
@@ -881,3 +892,239 @@ article.stat { cursor: default; }
 .withdraw-note { margin: 12px 16px; font-size: 13px; color: #334155; }
 .withdraw-actions { display: grid; grid-template-columns: 1.35fr 0.75fr; gap: 8px; padding: 0 16px 16px; }
 .withdraw-actions .primary, .withdraw-actions .ghost { margin-top: 0; font-size: 14px; padding: 12px 8px; }
+
+.list.compact { padding-bottom: 4px; }
+.page .list { padding-left: 0; padding-right: 0; padding-bottom: 12px; }
+.bookings-page .section-head,
+.bookings-page .pills,
+.page .booking-head { padding-left: 0; padding-right: 0; }
+.booking-head { align-items: flex-start; gap: 8px; }
+.booking-title { flex: 1; min-width: 0; align-items: flex-start; font-size: 15px; line-height: 1.35; }
+.booking-title > span { flex: 1; min-width: 0; white-space: normal; overflow: visible; line-height: 1.35; }
+.booking-title > i { color: var(--green); flex: none; margin-top: 3px; }
+.booking-head .linkish { flex: none; margin-top: 2px; font-size: 13px; white-space: nowrap; gap: 2px; }
+.region-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
+  color: #067a38;
+}
+.booking {
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px 14px 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+.booking-top, .booking-who, .fresh, .ago, .booking-phone, .call-now, .drop, .fare small {
+  display: flex;
+  align-items: center;
+}
+.booking-top { justify-content: space-between; gap: 8px; }
+.booking-who { gap: 6px; min-width: 0; }
+.booking-who b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fresh { gap: 2px; color: #079447; font-size: 12px; font-weight: 800; flex: none; }
+.ago { gap: 4px; color: #94a3b8; font-size: 12px; font-weight: 700; flex: none; }
+.booking-phone { justify-content: center; gap: 8px; margin: 10px 0 12px; font-weight: 800; letter-spacing: 0.2px; }
+.booking-phone > span { display: inline-flex; align-items: center; gap: 6px; }
+.booking-phone button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e6edf3;
+  background: #fff;
+  border-radius: 8px;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+}
+.booking-route { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.track { display: grid; gap: 14px; position: relative; }
+.track::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 12px;
+  bottom: 12px;
+  border-left: 2px dashed #d5dee8;
+}
+.leg { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.leg > span:last-child { display: grid; min-width: 0; }
+.leg b { font-size: 15px; line-height: 1.2; }
+.leg small { color: #94a3b8; font-size: 11px; font-weight: 700; }
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: none;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 3px #fff;
+}
+.dot.go { background: #22c55e; }
+.dot.end { background: #ef4444; }
+.fare {
+  min-width: 108px;
+  background: #e9f9ef;
+  color: #079447;
+  border-radius: 14px;
+  padding: 8px 10px;
+  text-align: center;
+}
+.fare small { justify-content: center; gap: 3px; font-size: 11px; font-weight: 800; }
+.fare strong { display: block; margin-top: 2px; font-size: 15px; letter-spacing: -0.03em; white-space: nowrap; }
+.booking-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  border: 1px solid #e8eef3;
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: #64748b;
+  font-size: 13px;
+}
+.booking-note i { margin-top: 2px; flex: none; }
+.call-now {
+  width: 100%;
+  margin-top: 12px;
+  border: 0;
+  background: var(--green);
+  color: #fff;
+  border-radius: 999px;
+  padding: 13px 16px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 8px 16px rgba(0, 177, 79, 0.22);
+}
+.drop {
+  width: 100%;
+  margin-top: 12px;
+  border: 0;
+  background: #fff1f2;
+  color: #e11d2e;
+  border-radius: 14px;
+  padding: 12px;
+  font-weight: 800;
+  justify-content: center;
+  gap: 6px;
+}
+.member-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  background: #fff;
+  padding: 4px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+}
+.member-tabs button {
+  border: 0;
+  background: transparent;
+  border-radius: 10px;
+  padding: 10px 6px;
+  font-weight: 800;
+  color: #64748b;
+  font-size: 13px;
+  text-align: center;
+  line-height: 1.25;
+}
+.member-tabs button.on { background: #e7f8ee; color: #067a38; }
+.trip-card { background: #fff; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06); }
+.trip-head { background: #e7f8ee; padding: 16px 16px 14px; }
+.trip-head h2 { margin: 0; font-size: 18px; }
+.trip-body { padding: 14px 14px 16px; }
+.trip-hint { margin: 8px 0 0; text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; }
+.verified {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -2px 0 12px;
+  color: #079447;
+  font-size: 13px;
+  font-weight: 700;
+}
+.field select, .field textarea {
+  border: 1px solid #dbe3ea;
+  border-radius: 12px;
+  padding: 14px 12px;
+  font-size: 15px;
+  font-weight: 600;
+  background: #fff;
+  width: 100%;
+}
+.field textarea { resize: vertical; min-height: 84px; font-weight: 500; }
+.field select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #64748b 50%), linear-gradient(135deg, #64748b 50%, transparent 50%);
+  background-position: calc(100% - 18px) 50%, calc(100% - 12px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+.field input[readonly] { background: #f8fafc; color: #0f172a; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field-row .field { min-width: 0; }
+.field-row select { font-size: 13px; padding-left: 10px; padding-right: 28px; }
+.mine-intro { margin-bottom: 12px; }
+.mine-intro h2 { margin: 0 0 4px; }
+.primary:disabled { opacity: 0.72; }
+#paid { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.spin {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.warn-sign { width: 74px; height: 64px; display: block; margin: 4px auto 6px; }
+.warn h3 { margin: 6px 0 0; color: #1e293b; font-size: 18px; line-height: 1.35; }
+.warn p { margin: 8px 0 0; color: #64748b; font-size: 14px; line-height: 1.5; }
+.warn-ok {
+  width: 100%;
+  margin-top: 18px;
+  border: 0;
+  background: #ef233c;
+  color: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  font-weight: 800;
+  box-shadow: 0 8px 16px rgba(239, 35, 60, 0.28);
+}
+.dialog .row-actions { margin-top: 16px; }
+.dialog .row-actions .warn-ok { margin-top: 0; box-shadow: none; }
+.modal-card.poster {
+  top: 50%;
+  bottom: auto;
+  left: 50%;
+  width: min(400px, calc(100% - 28px));
+  transform: translate(-50%, -50%);
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  border-radius: 14px;
+}
+.modal-card.poster img { display: block; width: 100%; height: auto; border-radius: 14px; }
+.poster-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0f172a;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.18);
+}

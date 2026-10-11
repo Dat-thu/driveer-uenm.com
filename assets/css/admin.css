@@ -55,7 +55,7 @@ button { cursor: pointer; }
 .full { width: 100%; margin-top: 16px; }
 .msg { min-height: 20px; margin-top: 8px; font-weight: 700; color: #b91c1c; }
 
-.shell { min-height: 100svh; display: grid; grid-template-columns: 232px 1fr; }
+.shell { min-height: 100svh; display: grid; grid-template-columns: 268px 1fr; }
 .side {
   background: var(--side);
   color: #fff;
@@ -66,7 +66,7 @@ button { cursor: pointer; }
   position: sticky;
   top: 0;
   height: 100svh;
-  min-width: 232px;
+  min-width: 268px;
 }
 .nav-btn {
   text-align: left;
@@ -139,6 +139,9 @@ button { cursor: pointer; }
 .table-wrap { overflow: auto; border: 1px solid var(--line); border-radius: 16px; }
 table { width: 100%; border-collapse: collapse; min-width: 720px; }
 table.members { min-width: 680px; }
+table.member-rides { min-width: 980px; }
+table.member-rides th, table.member-rides td { white-space: nowrap; padding: 10px 12px; }
+table.member-rides .note-cell { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
 th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: middle; }
 th { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; background: #f8faf9; font-weight: 700; }
 tbody tr:last-child td { border-bottom: 0; }
